@@ -8,16 +8,18 @@
 
 #import "KGStatusBar.h"
 
+NSString *const KGStatusBarTapNotification = @"KGStatusBarTapNotification";
+
 @interface KGStatusBar ()
-    @property (nonatomic, strong, readonly) UIWindow *overlayWindow;
     @property (nonatomic, strong, readonly) UIView *topBar;
     @property (nonatomic, strong) UILabel *stringLabel;
     @property (nonatomic, strong) UIActivityIndicatorView *spinner;
+    @property (nonatomic, strong) UITapGestureRecognizer *tapGestureRecognizer;
 @end
 
 @implementation KGStatusBar
 
-@synthesize topBar, overlayWindow, stringLabel;
+@synthesize topBar, stringLabel;
 
 + (KGStatusBar*)sharedView {
     static dispatch_once_t once;
@@ -54,12 +56,34 @@
 - (id)initWithFrame:(CGRect)frame {
 	
     if ((self = [super initWithFrame:frame])) {
-		self.userInteractionEnabled = NO;
-        self.backgroundColor = [UIColor clearColor];
-		self.alpha = 0;
         self.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        self.backgroundColor = [UIColor clearColor];
+//        self.userInteractionEnabled = NO;
+        self.windowLevel = UIWindowLevelStatusBar;
+        
+        // Transform depending on interafce orientation
+        CGAffineTransform rotationTransform = CGAffineTransformMakeRotation([self rotation]);
+        self.transform = rotationTransform;
+        self.bounds = CGRectMake(0.f, 0.f, [self rotatedSize].width, [self rotatedSize].height);
+        
+        // Register for orientation changes
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(handleRoration:)
+                                                     name:UIApplicationDidChangeStatusBarOrientationNotification
+                                                   object:nil];
     }
     return self;
+}
+
+- (void)tapStatusBar {
+    [[NSNotificationCenter defaultCenter] postNotificationName:KGStatusBarTapNotification object:self];
+}
+
+- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event
+{
+    if (self.tapGestureRecognizer && [self.topBar pointInside:point withEvent:event]) return self.topBar;
+    UIWindow *keyWindow = [UIApplication sharedApplication].keyWindow;
+    return [keyWindow hitTest:[keyWindow convertPoint:point fromWindow:self] withEvent:event];
 }
 
 - (void)dealloc
@@ -67,12 +91,10 @@
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
-- (void)showWithStatus:(NSString *)status barColor:(UIColor*)barColor textColor:(UIColor*)textColor{
+- (void)showWithStatus:(NSString *)status barColor:(UIColor*)barColor textColor:(UIColor*)textColor {
     [_spinner stopAnimating];
-    if(!self.superview)
-        [self.overlayWindow addSubview:self];
-    [self.overlayWindow setHidden:NO];
-    [self.topBar setHidden:NO];
+    self.hidden = NO;
+    self.topBar.hidden = NO;
     self.topBar.backgroundColor = barColor;
     NSString *labelText = status;
     CGRect labelRect = CGRectZero;
@@ -96,7 +118,7 @@
     [self setNeedsDisplay];
 }
 
-- (void) dismiss
+- (void)dismiss
 {
     [UIView animateWithDuration:0.4 animations:^{
         self.stringLabel.alpha = 0.0;
@@ -105,37 +127,17 @@
         topBar = nil;
         [_spinner removeFromSuperview];
         _spinner = nil;
-        [overlayWindow removeFromSuperview];
-        overlayWindow = nil;
+        self.tapGestureRecognizer = nil;
+        self.hidden = YES;
     }];
-}
-
-- (UIWindow *)overlayWindow {
-    if(!overlayWindow) {
-        overlayWindow = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
-        overlayWindow.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-        overlayWindow.backgroundColor = [UIColor clearColor];
-        overlayWindow.userInteractionEnabled = NO;
-        overlayWindow.windowLevel = UIWindowLevelStatusBar;
-        
-        // Transform depending on interafce orientation
-        CGAffineTransform rotationTransform = CGAffineTransformMakeRotation([self rotation]);
-        self.overlayWindow.transform = rotationTransform;
-        self.overlayWindow.bounds = CGRectMake(0.f, 0.f, [self rotatedSize].width, [self rotatedSize].height);
-        
-        // Register for orientation changes
-        [[NSNotificationCenter defaultCenter] addObserver:self
-                                                 selector:@selector(handleRoration:)
-                                                     name:UIApplicationDidChangeStatusBarOrientationNotification
-                                                   object:nil];
-    }
-    return overlayWindow;
 }
 
 - (UIView *)topBar {
     if(!topBar) {
-        topBar = [[UIView alloc] initWithFrame:CGRectMake(0.f, 0.f, [self rotatedSize].width, 20.0f)];
-        [overlayWindow addSubview:topBar];
+        topBar = [[UIView alloc] initWithFrame:CGRectMake(0.f, 0.f, [self rotatedSize].width, 20.f)];
+        [self addSubview:topBar];
+        self.tapGestureRecognizer = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(tapStatusBar)];
+        [topBar addGestureRecognizer:self.tapGestureRecognizer];
     }
     return topBar;
 }
@@ -170,6 +172,7 @@
     if (_spinner == nil)
     {
         _spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhite];
+        _spinner.transform = CGAffineTransformMakeScale(0.8, 0.8);
         _spinner.center = CGPointMake(CGRectGetMinX(self.stringLabel.frame) - 25, self.stringLabel.center.y);
         [_spinner setHidesWhenStopped:YES];
         [self.topBar addSubview:_spinner];
@@ -215,10 +218,11 @@
     CGAffineTransform rotationTransform = CGAffineTransformMakeRotation([self rotation]);
     [UIView animateWithDuration:[[UIApplication sharedApplication] statusBarOrientationAnimationDuration]
                        animations:^{
-                           self.overlayWindow.transform = rotationTransform;
+                           self.transform = rotationTransform;
                            // Transform invalidates the frame, so use bounds/center
-                           self.overlayWindow.bounds = CGRectMake(0.f, 0.f, [self rotatedSize].width, [self rotatedSize].height);
+                           self.bounds = CGRectMake(0.f, 0.f, [self rotatedSize].width, [self rotatedSize].height);
                            self.topBar.frame = CGRectMake(0.f, 0.f, [self rotatedSize].width, 20.f);
+                           _spinner.center = CGPointMake(CGRectGetMinX(self.stringLabel.frame) - 25, self.stringLabel.center.y);
                        }];
 }
 

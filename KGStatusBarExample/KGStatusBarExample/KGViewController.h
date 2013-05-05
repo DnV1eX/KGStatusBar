@@ -8,7 +8,8 @@
 
 #import <UIKit/UIKit.h>
 
-@interface KGViewController : UIViewController
+@interface KGViewController : UIViewController <UITableViewDataSource>
 
+@property (nonatomic, strong) UITableView *tableView;
 
 @end

@@ -23,7 +23,14 @@
 - (void)viewDidLoad
 {
     [super viewDidLoad];
-	// Do any additional setup after loading the view, typically from a nib.
+	[[NSNotificationCenter defaultCenter] addObserverForName:KGStatusBarTapNotification object:nil queue:nil usingBlock:^(NSNotification *note) {
+        UIAlertView *alert = [[UIAlertView alloc] initWithTitle:@"Status Bar has been tapped" message:nil delegate:nil cancelButtonTitle:@"OK" otherButtonTitles:nil];
+        [alert show];
+    }];
+    self.tableView = [[UITableView alloc] initWithFrame:CGRectMake(0, 200, self.view.bounds.size.width, self.view.bounds.size.height - 200) style:UITableViewStylePlain];
+    self.tableView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    self.tableView.dataSource = self;
+    [self.view addSubview:self.tableView];
 }
 
 - (void)didReceiveMemoryWarning
@@ -47,4 +54,26 @@
 - (IBAction)dismissButtonPressed:(id)sender {
     [KGStatusBar dismiss];
 }
+
+#pragma mark - UITableViewDataSource
+
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
+{
+    return 10;
+}
+
+- (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section
+{
+    return @"Scroll to Top";
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
+{
+    static NSString *cellIdentifier = @"Cell";
+    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:cellIdentifier];
+    if (!cell) cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:cellIdentifier];
+    cell.textLabel.text = @(indexPath.row).stringValue;
+    return cell;
+}
+
 @end

@@ -8,7 +8,9 @@
 
 #import <UIKit/UIKit.h>
 
-@interface KGStatusBar : UIView
+extern NSString *const KGStatusBarTapNotification;
+
+@interface KGStatusBar : UIWindow
 
 + (void)showWithStatus:(NSString*)status;
 + (void)showLoadingWithStatus:(NSString*)status;
